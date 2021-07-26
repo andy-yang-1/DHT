@@ -12,7 +12,7 @@ var all_modder = big.NewInt(2).Exp(big.NewInt(2), big.NewInt(160), nil)
 
 const SuccessorLen int = 5
 const RingSize int = 160
-const MaintainPeriod time.Duration = 500 * time.Millisecond
+const MaintainPeriod time.Duration = 100 * time.Millisecond
 const WaitTime time.Duration = 30 * time.Millisecond
 
 func Get_hash_code(ID string) *big.Int {

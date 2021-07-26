@@ -34,13 +34,13 @@ func init() {
 		fmt.Println("fail to open log file")
 	}
 	log.SetOutput(f)
-//	logrus.SetFormatter(&logrus.TextFormatter{ForceColors: true})
+//	logrus.SetFormatter(&logrus.TextFormatter{ForceColors: true}) // todo change nil to occupy check all the lock
 //	logrus.SetOutput(ansicolor.NewAnsiColorWriter(os.Stdout))
 	logrus.SetOutput(f)
-	rand.Seed(time.Now().UnixNano()) // 这是啥
+	rand.Seed(time.Now().UnixNano())
 }
 
-func main() {
+func main() { // todo -> userless adjustment was too frequent
 	defer f.Close()
 	_, _ = yellow.Println("Welcome to DHT-2020 Test Program!\n")
 
