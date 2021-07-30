@@ -52,6 +52,8 @@ func Download(TorrentFilename string, realPath string, node *dhtNode) {
 
 // test 3
 
+// special test
+
 func UploadAllData(filename string, realPath string, node *dhtNode) Torrent.TorrentFile {
 	all_data, err := os.ReadFile(filename)
 	if err != nil {
