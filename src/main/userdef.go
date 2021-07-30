@@ -13,6 +13,12 @@ func NewNode(port int) dhtNode {
 	return &tempNode
 }
 
+func NewNodeStr(port string) dhtNode{
+	var tempNode DHT.ChordServer
+	tempNode.ManualInitialize(port)
+	return &tempNode
+}
+
 // Todo: implement a struct which implements the interface "dhtNode".
 
 

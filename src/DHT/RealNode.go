@@ -18,7 +18,7 @@ type ChordNode struct {
 	AllData  map[string]string
 	dataLock sync.Mutex
 
-	Backup map[string]string
+	Backup     map[string]string
 	backupLock sync.Mutex
 
 	SuccessorList [SuccessorLen]string
@@ -40,11 +40,11 @@ type SmallData struct { // todo all force quit -> no need for SmallData
 	FingerTable   [RingSize]string
 }
 
-func (sd *SmallData) Copy( t_n *ChordNode )  { // copy the basic data of a certain ChordNode
+func (sd *SmallData) Copy(t_n *ChordNode) { // copy the basic data of a certain ChordNode
 	sd.Addr = t_n.Addr
-	sd.HashCode = new(big.Int).Add(t_n.HashCode,big.NewInt(0))
+	sd.HashCode = new(big.Int).Add(t_n.HashCode, big.NewInt(0))
 	sd.AllData = make(map[string]string)
-	for key , val := range t_n.AllData{
+	for key, val := range t_n.AllData {
 		sd.AllData[key] = val // copy the realData
 	}
 	sd.FingerTable = t_n.FingerTable
@@ -81,6 +81,12 @@ func (ser *ChordServer) SetPort(port int) { // todo 空指针一定要 new
 	ser.nodeNetWrapper.RealNode.HashCode = Get_hash_code(ser.nodeNetWrapper.RealNode.Addr)
 }
 
+func (ser *ChordServer) ManualInitialize(port string)  {
+	ser.nodeNetWrapper.RealNode = new(ChordNode)
+	ser.nodeNetWrapper.RealNode.Addr = port
+	ser.nodeNetWrapper.RealNode.HashCode = Get_hash_code(port)
+}
+
 func GetClient(temp_addr string) (*rpc.Client, error) { // 拨打失败需要继续拨打
 	if temp_addr == "" {
 		logrus.Warningf("<GetClient> empty address")
@@ -110,7 +116,7 @@ func GetClient(temp_addr string) (*rpc.Client, error) { // 拨打失败需要继
 	}
 	logrus.Errorf("<GetCient> cannot access %s", temp_addr)
 	return nil, myError{"access fail"}
-	
+
 }
 
 func CheckClientRunning(temp_addr string) bool {
@@ -126,19 +132,18 @@ func CheckClientRunning(temp_addr string) bool {
 }
 
 func (t_n *ChordNode) First_online_successor() string {
-	for i := 0 ; i < SuccessorLen ; i++{
-		if CheckClientRunning(t_n.SuccessorList[i]){
+	for i := 0; i < SuccessorLen; i++ {
+		if CheckClientRunning(t_n.SuccessorList[i]) {
 			return t_n.SuccessorList[i]
 		}
 	}
-	logrus.Errorf("<First_online_successor> broken core in addr %s",t_n.Addr)
+	logrus.Errorf("<First_online_successor> broken core in addr %s", t_n.Addr)
 	return ""
 }
 
 //func GetService( client *rpc.Client , func_name string , allInput interface{} , allOutput interface{} ){ // GetService 的核心目的是为了让远程服务端调用函数 wrapper 的目的是封装好来被调用
 //	client.Call(func_name,allInput,allOutput)
 //} // todo GetService 貌似没有必要
-
 
 func (t_n *ChordNode) FindSuccessor(temp_int *big.Int, ans *string) { // ID >= temp_int 或者 环
 	logrus.Infof("<FindSuccessor> find %s in %s", temp_int.String(), t_n.HashCode.String())
@@ -150,7 +155,7 @@ func (t_n *ChordNode) FindSuccessor(temp_int *big.Int, ans *string) { // ID >= t
 		*ans = t_n.Addr
 		return
 	}
-	if IsBetween(t_n.HashCode, next_int, temp_int, true) { // 目标在自己和后继之间
+	if IsBetween(t_n.HashCode, next_int, temp_int, true) { // 目标在自己 和后继之间
 		logrus.Infof("<FindSuccessor> success: target %s between self %s (code: %s) and successor %s (code: %s)", temp_int.String(), t_n.Addr, t_n.HashCode.String(), t_n.SuccessorList[0], next_int.String())
 		*ans = t_n.SuccessorList[0]
 		return
@@ -168,7 +173,7 @@ func (t_n *ChordNode) FindSuccessor(temp_int *big.Int, ans *string) { // ID >= t
 			continue
 		}
 		trans_int := Get_hash_code(t_n.FingerTable[i])
-		if !IsBetween(t_n.HashCode,temp_int,trans_int,true) { // 跳过头
+		if !IsBetween(t_n.HashCode, temp_int, trans_int, true) { // 跳过头
 			continue
 		}
 		ok := CheckClientRunning(t_n.FingerTable[i])
@@ -185,15 +190,15 @@ func (t_n *ChordNode) FindSuccessor(temp_int *big.Int, ans *string) { // ID >= t
 	}
 	// here -> not only rely on the finger table: be careful, the successor list is the only reliable list
 	logrus.Warningf("<FindSuccessor> fail at find %s in %s by using finger table", temp_int.String(), t_n.HashCode.String())
-	client , _ := GetClient(t_n.SuccessorList[0])
+	client, _ := GetClient(t_n.SuccessorList[0])
 	if client == nil {
-		logrus.Errorf("<FindSuccessor> fail to find any client at %s -> broken core",t_n.Addr)
+		logrus.Errorf("<FindSuccessor> fail to find any client at %s -> broken core", t_n.Addr)
 		return
 	}
-	client.Call("Wrapper.FindSuccessor",temp_int,ans)
+	client.Call("Wrapper.FindSuccessor", temp_int, ans)
 }
 
-func (t_n *ChordNode) AllDataDeliver( ans *ChordNode )  {
+func (t_n *ChordNode) AllDataDeliver(ans *ChordNode) {
 	t_n.dataLock.Lock()
 	t_n.backupLock.Lock()
 	ans.Addr = t_n.Addr
@@ -250,7 +255,7 @@ func (t_n *ChordNode) Stabilize() { // todo 未上锁
 	var uselessInt int
 	firstSuccessor := t_n.First_online_successor()
 	client, _ := GetClient(firstSuccessor) // todo 现在只处理了节点添加的情况，没有处理节点失效的情况
-	if client == nil { // todo 未查找前继失效情况
+	if client == nil {                     // todo 未查找前继失效情况
 		logrus.Errorf("<Stabilize> client connection fail in addr %s -> %s", t_n.Addr, t_n.SuccessorList[0])
 		return
 	}
@@ -269,42 +274,42 @@ func (t_n *ChordNode) Stabilize() { // todo 未上锁
 		}
 		client.Call("Wrapper.SmallDataDeliver", 0, tempSucc) // 真正的 tempSucc // todo change it to small data deliver
 	} // todo linkDataDeliver to prohibit frequent map transfer
-	if tempSucc.Predecessor == ""{ // tempSucc's predecessor is lost
-//		fmt.Printf("<Stabilize> check %s offline\n",t_n.SuccessorList[0])
+	if tempSucc.Predecessor == "" { // tempSucc's predecessor is lost
+		//		fmt.Printf("<Stabilize> check %s offline\n",t_n.SuccessorList[0])
 		t_n.SuccessorList[0] = tempSucc.Addr
-		client.Call("Wrapper.TransferBackup",t_n.AllData,&uselessInt)
+		client.Call("Wrapper.TransferBackup", t_n.AllData, &uselessInt)
 	}
 	for i := 1; i < SuccessorLen; i++ { // 更新后继表
 		t_n.SuccessorList[i] = tempSucc.SuccessorList[i-1] // 错位
 	}
-	client.Call("Wrapper.Notify",t_n.Addr,&uselessInt)
+	client.Call("Wrapper.Notify", t_n.Addr, &uselessInt)
 	logrus.Infof("<Stabilize> Service finished in addr %s , old successor %s , new successor %s .", t_n.Addr, tempSucc.Addr, t_n.SuccessorList[0])
 	client.Close()
 }
 
 // todo apply_backup
 
-func (t_n *ChordNode) CheckPredecessorOnline()  {
+func (t_n *ChordNode) CheckPredecessorOnline() {
 	var uselessInt int
-	if t_n.Predecessor != "" && !CheckClientRunning(t_n.Predecessor){
-//		fmt.Printf("<CheckPredecessorOnline> check %s offline\n",t_n.Predecessor)
+	if t_n.Predecessor != "" && !CheckClientRunning(t_n.Predecessor) {
+		//		fmt.Printf("<CheckPredecessorOnline> check %s offline\n",t_n.Predecessor)
 		t_n.Predecessor = ""
 		// todo -> backup transfer
 		t_n.backupLock.Lock()
 		t_n.dataLock.Lock()
-		for key , val := range t_n.Backup{
+		for key, val := range t_n.Backup {
 			t_n.AllData[key] = val
 		}
 		t_n.Backup = make(map[string]string)
 		t_n.dataLock.Unlock()
 		t_n.backupLock.Unlock()
-		client , _ := GetClient(t_n.SuccessorList[0]) // inform the successor to update the backup
-		if client == nil{
-			logrus.Errorf("<CheckPredecessorOnline> fail to transfer backup to the successor in addr %s -> %s",t_n.Addr,t_n.SuccessorList[0])
+		client, _ := GetClient(t_n.SuccessorList[0]) // inform the successor to update the backup
+		if client == nil {
+			logrus.Errorf("<CheckPredecessorOnline> fail to transfer backup to the successor in addr %s -> %s", t_n.Addr, t_n.SuccessorList[0])
 			return
 		}
 		t_n.dataLock.Lock()
-		client.Call("Wrapper.TransferBackup",t_n.AllData,&uselessInt)
+		client.Call("Wrapper.TransferBackup", t_n.AllData, &uselessInt)
 		t_n.dataLock.Unlock()
 		client.Close()
 	}
@@ -312,20 +317,20 @@ func (t_n *ChordNode) CheckPredecessorOnline()  {
 
 func (t_n *ChordNode) Notify(temp_addr string) { // todo notify 修改非自身,而是他人的节点 call 调用
 	logrus.Infof("<Notify> Service start in addr %s -> %s", t_n.Addr, t_n.Predecessor)
-	if t_n.Predecessor == temp_addr{
-		logrus.Infof("<Notify> no need to notify in addr %s",t_n.Addr)
+	if t_n.Predecessor == temp_addr {
+		logrus.Infof("<Notify> no need to notify in addr %s", t_n.Addr)
 		return
 	}
 	if t_n.Predecessor == "" || IsBetween(Get_hash_code(t_n.Predecessor), t_n.HashCode, Get_hash_code(temp_addr), false) {
 		t_n.Predecessor = temp_addr
 		// todo 信息传递尚未完成
-		client , _ := GetClient(t_n.Predecessor)
-		if client == nil{
-			logrus.Errorf("<Notify> fail to update successor in addr %s -> %s" ,t_n.Addr , t_n.Predecessor )
+		client, _ := GetClient(t_n.Predecessor)
+		if client == nil {
+			logrus.Errorf("<Notify> fail to update successor in addr %s -> %s", t_n.Addr, t_n.Predecessor)
 			return
 		}
 		t_n.backupLock.Lock()
-		client.Call("Wrapper.ReceiveBackup",0,&t_n.Backup)
+		client.Call("Wrapper.ReceiveBackup", 0, &t_n.Backup)
 		t_n.backupLock.Unlock()
 		client.Close()
 	}
@@ -356,13 +361,13 @@ func (t_n *ChordNode) PutVal(key string, val string) bool { // todo 未完善备
 	t_n.dataLock.Lock()
 	t_n.AllData[key] = val
 	t_n.dataLock.Unlock()
-	client , _ := GetClient(t_n.SuccessorList[0])
+	client, _ := GetClient(t_n.SuccessorList[0])
 	if client == nil {
 		return true
 	}
-	client.Call("Wrapper.AddBackup",KVpair{key,val},&uselessInt)
+	client.Call("Wrapper.AddBackup", KVpair{key, val}, &uselessInt)
 	client.Close()
-//	fmt.Printf("<Put> put key %s in addr %s , backup in %s\n",key,t_n.Addr,t_n.SuccessorList[0])
+	//	fmt.Printf("<Put> put key %s in addr %s , backup in %s\n",key,t_n.Addr,t_n.SuccessorList[0])
 	return true
 }
 
@@ -371,7 +376,7 @@ func (t_n *ChordNode) GetVal(key string) string {
 	ans, exi := t_n.AllData[key]
 	t_n.dataLock.Unlock()
 	if exi == false {
-		fmt.Printf("<Get> fail to get %s in addr %s\n",key,t_n.Addr)
+		fmt.Printf("<Get> fail to get %s in addr %s\n", key, t_n.Addr)
 		return ""
 	}
 	return ans
@@ -383,62 +388,61 @@ func (t_n *ChordNode) DeleteVal(key string) bool { // todo 未完善备用列表
 	_, exi := t_n.AllData[key]
 	if exi == false {
 		t_n.dataLock.Unlock()
-		fmt.Printf("<Delete> fail to delete key %s in addr %s\n",key,t_n.Addr)
+		fmt.Printf("<Delete> fail to delete key %s in addr %s\n", key, t_n.Addr)
 		return false // 不存在此键
 	}
 	delete(t_n.AllData, key)
 	t_n.dataLock.Unlock()
-	client , _ := GetClient(t_n.SuccessorList[0])
-	if client == nil{
+	client, _ := GetClient(t_n.SuccessorList[0])
+	if client == nil {
 		return true
 	}
-	client.Call("Wrapper.DelBackup",KVpair{key,""},&uselessInt)
+	client.Call("Wrapper.DelBackup", KVpair{key, ""}, &uselessInt)
 	client.Close()
-//	fmt.Printf("<Delete> delete backup key %s in addr %s\n",key,t_n.SuccessorList[0])
+	//	fmt.Printf("<Delete> delete backup key %s in addr %s\n",key,t_n.SuccessorList[0])
 	return true
 }
 
-func (t_n *ChordNode) ChangeSuccList( newList [SuccessorLen]string )  {
+func (t_n *ChordNode) ChangeSuccList(newList [SuccessorLen]string) {
 	t_n.successorLock.Lock()
 	t_n.SuccessorList = newList // only need to correct the successorList
 	t_n.successorLock.Unlock()
 }
 
-func (t_n *ChordNode) ReceivePreData( receivedData SmallData )  {
+func (t_n *ChordNode) ReceivePreData(receivedData SmallData) {
 	t_n.Predecessor = receivedData.Predecessor // change the predecessor
 	t_n.dataLock.Lock()
-	for key , val := range receivedData.AllData{
+	for key, val := range receivedData.AllData {
 		t_n.AllData[key] = val
 	}
 	t_n.dataLock.Unlock()
 }
 
-func (ser *ChordServer) ShutDown()  {
+func (ser *ChordServer) ShutDown() {
 	err := ser.realListener.Close()
 	if err != nil {
-		logrus.Errorf("<ShutDown> fail in addr %s , err: %s",ser.nodeNetWrapper.RealNode.Addr,err)
-//		fmt.Errorf("<ShutDown> fail in addr %s , err: %s",ser.nodeNetWrapper.RealNode.Addr,err)
+		logrus.Errorf("<ShutDown> fail in addr %s , err: %s", ser.nodeNetWrapper.RealNode.Addr, err)
+		//		fmt.Errorf("<ShutDown> fail in addr %s , err: %s",ser.nodeNetWrapper.RealNode.Addr,err)
 		return
 	}
 	ser.nodeNetWrapper.RealNode.IsListening = false
-	logrus.Infof("<ShutDown> finished successfully in addr %s",ser.nodeNetWrapper.RealNode.Addr)
-//	fmt.Printf("<ShutDown> happen in addr %s \n",ser.nodeNetWrapper.RealNode.Addr)
+	logrus.Infof("<ShutDown> finished successfully in addr %s", ser.nodeNetWrapper.RealNode.Addr)
+	//	fmt.Printf("<ShutDown> happen in addr %s \n",ser.nodeNetWrapper.RealNode.Addr)
 }
 
-func (t_n *ChordNode) TransferBackup( temp_data map[string]string )  {
+func (t_n *ChordNode) TransferBackup(temp_data map[string]string) {
 	t_n.backupLock.Lock()
-	for key , val := range temp_data{
+	for key, val := range temp_data {
 		t_n.Backup[key] = val
 	}
 	t_n.backupLock.Unlock()
 }
 
-func (t_n *ChordNode) ReceiveBackup( neededData *map[string]string )  {
+func (t_n *ChordNode) ReceiveBackup(neededData *map[string]string) {
 	*neededData = make(map[string]string)
 	t_n.dataLock.Lock()
-	for key ,val := range t_n.AllData{
+	for key, val := range t_n.AllData {
 		(*neededData)[key] = val
 	}
 	t_n.dataLock.Unlock()
 }
-
