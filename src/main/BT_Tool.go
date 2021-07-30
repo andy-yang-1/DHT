@@ -50,6 +50,18 @@ func Download(TorrentFilename string, realPath string, node *dhtNode) {
 	fmt.Println("Download success")
 }
 
+func DownloadByMaget( rawMagnet string , realPath string , node *dhtNode ){
+	temp_key := rawMagnet[20:]
+	ok , torrentDat := (*node).Get(temp_key)
+	if !ok{
+		fmt.Printf("Fail: Magnet expired")
+		return
+	}
+	os.WriteFile("temp.torrent",[]byte(torrentDat),0644)
+	Download("temp.torrent","",node)
+	os.Remove("temp.torrent")
+}
+
 func UploadAllData(filename string, realPath string, node *dhtNode) Torrent.TorrentFile {
 	all_data, err := os.ReadFile(filename)
 	if err != nil {
@@ -89,3 +101,5 @@ func UploadAllData(filename string, realPath string, node *dhtNode) Torrent.Torr
 	os.WriteFile(fileStat.Name()+".torrent", torrentCode.Bytes(), 0644)
 	return t_file
 }
+
+// merge branch test
